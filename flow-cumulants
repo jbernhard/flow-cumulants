@@ -130,17 +130,17 @@ def main():
     )
 
     parser.add_argument('-c', '--column',
-                        type=int, default=2, 
+                        type=int, default=2,
                         help='Column number containing phi values, \
                         counted from 0.'
                         )
     parser.add_argument('-n', '--max-vn',
-                        type=int, choices=range(2, 10), default=4, 
+                        type=int, choices=range(2, 10), default=4,
                         metavar='(2-9)',
                         help='Maximum flow harmonic.'
                         )
     parser.add_argument('-k', '--max-cumulant',
-                        type=int, choices=(2, 4, 6), default=4, 
+                        type=int, choices=(2,), default=2,
                         help='Maximum cumulant.'
                         )
 
@@ -161,10 +161,10 @@ def main():
 
     # loop over events
     # append multiplicity and Q_n to respective lists
-    for phi in phi_generator():
+    for phi in phi_generator(args.column):
         M.append(phi.size)
         for n, Qn in Q.items():
-            # FIXME Q_n(phi) = 
+            # FIXME Q_n(phi) =
             Qn.append(np.exp(1j*n*phi).sum())
 
     # convert to numpy arrays
@@ -172,10 +172,9 @@ def main():
     for n, Qn in Q.items():
         Q[n] = np.array(Qn, dtype=np.complex128)
 
-    for k in the_k:
-        cumulant = cumulant_functions[k]
-        for n in the_n:
-            print(cumulant(n, Q))
+    for n in the_n:
+        #corr2 =
+        pass
 
     #cumulants = np.fromiter(
     #    itertools.chain.from_iterable(cumulant_generator()),

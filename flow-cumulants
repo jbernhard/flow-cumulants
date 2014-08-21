@@ -42,7 +42,6 @@ def Q_vectors(n, phi):
     return np.exp(1j*n*phi).sum()
 
 
-
 def cumulant(n, k, phi):
     """
     Flow cumulant <k>_n.
@@ -140,7 +139,7 @@ def main():
                         help='Maximum flow harmonic.'
                         )
     parser.add_argument('-k', '--max-cumulant',
-                        type=int, choices=(2,), default=2,
+                        type=int, choices=(2, 4), default=2,
                         help='Maximum cumulant.'
                         )
 
@@ -164,7 +163,6 @@ def main():
     for phi in phi_generator(args.column):
         M.append(phi.size)
         for n, Qn in Q.items():
-            # FIXME Q_n(phi) =
             Qn.append(np.exp(1j*n*phi).sum())
 
     # convert to numpy arrays
@@ -172,9 +170,47 @@ def main():
     for n, Qn in Q.items():
         Q[n] = np.array(Qn, dtype=np.complex128)
 
+    cumulants = []
+
     for n in the_n:
-        #corr2 =
-        pass
+        # v_n{2}
+        Qn = Q[n]
+        Qnsq = ne.evaluate('real(Qn*conj(Qn))')
+        #print(*Qnsq[:5])
+        #print(*M[:5])
+        corr2_numerator = ne.evaluate('sum(Qnsq - M)')
+        corr2_denominator = ne.evaluate('sum(M*(M-1))')
+        corr2 = corr2_numerator / corr2_denominator
+        cn2 = corr2
+        vn2 = abs(cn2)**.5
+        if cn2 < 0:
+            vn2 *= -1
+        #vn2 = cn2
+        cumulants.append(vn2)
+
+        if args.max_cumulant == 2:
+            continue
+
+        # v_n{4}
+        Q2n = Q[2*n]
+        corr4_numerator = ne.evaluate(
+            '''sum(
+               Qnsq*Qnsq + real(Q2n*conj(Q2n))
+               - 2*real(Q2n*conj(Qn)*conj(Qn))
+               - 4*(M-2)*Qnsq + 2*M*(M-3)
+            )'''
+        )
+        corr4_denominator = ne.evaluate('sum(M*(M-1)*(M-2)*(M-3))')
+        corr4 = corr4_numerator / corr4_denominator
+        cn4 = corr4 - 2.*corr2*corr2
+        vn4 = abs(cn4)**.25
+        if cn4 > 0:
+            vn4 *= -1
+        #vn4 = cn4
+        cumulants.append(vn4)
+
+
+    print(*cumulants)
 
     #cumulants = np.fromiter(
     #    itertools.chain.from_iterable(cumulant_generator()),

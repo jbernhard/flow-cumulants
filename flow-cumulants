@@ -162,13 +162,14 @@ def main():
     # append multiplicity and Q_n to respective lists
     for phi in phi_generator(args.column):
         M.append(phi.size)
-        for n, Qn in Q.items():
-            Qn.append(np.exp(1j*n*phi).sum())
+        for n, _Qn in Q.items():
+            #Qn.append(np.exp(1j*n*phi).sum())
+            _Qn.append(ne.evaluate('sum(exp(1j*n*phi))'))
 
     # convert to numpy arrays
     M = np.array(M, dtype=np.int32)
-    for n, Qn in Q.items():
-        Q[n] = np.array(Qn, dtype=np.complex128)
+    for n, _Qn in Q.items():
+        Q[n] = np.array(_Qn, dtype=np.complex128)
 
     cumulants = []
 
@@ -178,14 +179,16 @@ def main():
         Qnsq = ne.evaluate('real(Qn*conj(Qn))')
         #print(*Qnsq[:5])
         #print(*M[:5])
-        corr2_numerator = ne.evaluate('sum(Qnsq - M)')
-        corr2_denominator = ne.evaluate('sum(M*(M-1))')
+        #corr2_numerator = ne.evaluate('sum(Qnsq - M)')
+        #corr2_denominator = ne.evaluate('sum(M*(M-1))')
+        corr2_numerator = ne.evaluate('Qnsq - M')
+        corr2_denominator = ne.evaluate('M*(M-1)')
         corr2 = corr2_numerator / corr2_denominator
         cn2 = corr2
-        vn2 = abs(cn2)**.5
-        if cn2 < 0:
-            vn2 *= -1
-        #vn2 = cn2
+        #vn2 = abs(cn2)**.5
+        #if cn2 < 0:
+        #    vn2 *= -1
+        vn2 = cn2
         cumulants.append(vn2)
 
         if args.max_cumulant == 2:
@@ -193,24 +196,29 @@ def main():
 
         # v_n{4}
         Q2n = Q[2*n]
-        corr4_numerator = ne.evaluate(
-            '''sum(
-               Qnsq*Qnsq + real(Q2n*conj(Q2n))
-               - 2*real(Q2n*conj(Qn)*conj(Qn))
-               - 4*(M-2)*Qnsq + 2*M*(M-3)
-            )'''
-        )
-        corr4_denominator = ne.evaluate('sum(M*(M-1)*(M-2)*(M-3))')
+        #corr4_numerator = ne.evaluate(
+        #    '''sum(
+        #       Qnsq*Qnsq + real(Q2n*conj(Q2n))
+        #       - 2*real(Q2n*conj(Qn)*conj(Qn))
+        #       - 4*(M-2)*Qnsq + 2*M*(M-3)
+        #    )'''
+        #)
+        #corr4_denominator = ne.evaluate('sum(M*(M-1)*(M-2)*(M-3))')
+        #corr4_numerator = ne.evaluate('Qnsq*Qnsq + real(Q2n*conj(Q2n)) - 2*real(Q2n*conj(Qn)*conj(Qn)) - 4*(M-2)*Qnsq + 2*M*(M-3)')
+        corr4_numerator = abs(Qn)**4 + abs(Q2n)**2 - 2*(Q2n*Qn.conj()*Qn.conj()).real - 4*(M-2)*abs(Qn)**2 + 2*M*(M-3)
+        corr4_denominator = M*(M-1)*(M-2)*(M-3)
         corr4 = corr4_numerator / corr4_denominator
-        cn4 = corr4 - 2.*corr2*corr2
-        vn4 = abs(cn4)**.25
-        if cn4 > 0:
-            vn4 *= -1
-        #vn4 = cn4
+        #cn4 = corr4 - 2.*corr2*corr2
+        #vn4 = abs(cn4)**.25
+        #if cn4 > 0:
+        #    vn4 *= -1
+        vn4 = corr4
         cumulants.append(vn4)
 
+    for i in zip(M, corr2, corr4):
+        print(*i)
 
-    print(*cumulants)
+    #print(*cumulants)
 
     #cumulants = np.fromiter(
     #    itertools.chain.from_iterable(cumulant_generator()),

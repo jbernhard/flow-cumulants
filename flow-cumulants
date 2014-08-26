@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+'''Calculate flow cumulants v_n{k} for a batch of events.'''
 
 import argparse
 import sys
@@ -9,6 +10,22 @@ import numexpr as ne
 
 
 def phi_generator(column):
+    """
+    Read phi values as event-by-event chunks from stdin.
+
+    Events are assumed to separated by blank lines or comments.
+
+    Parameters
+    ----------
+    column : integer
+        Index of column containing phi values, counted from zero.
+
+    Yields
+    ------
+    phi : array of floats
+
+    """
+
     phi = []
 
     for l in sys.stdin:
@@ -25,10 +42,57 @@ def phi_generator(column):
 
 
 def Q_cumulant(n, phi):
+    """
+    Calculate Q-cumulant for an event.
+
+        Q_n(phi) = sum exp(i*n*phi)
+
+    Parameters
+    ----------
+    n : integer
+        Order of cumulant.
+    phi : array
+        Phi values for the event.
+
+    Returns
+    -------
+    Q_n : complex
+
+    """
+
     return ne.evaluate('sum(exp(1j*n*phi))')
 
 
 def cumulant_generator(the_n, k_max, Q, M):
+    """
+    Calculate cumulants v_n{k} for a batch of events.
+
+    Parameters
+    ----------
+    the_n : list of ints
+        Flow harmonics to calculate.
+    k_max : int
+        Maximum cumulant order.
+    Q : dict of arrays
+        Q[n] should contain an array of Q_n for each event.
+    M : array of multiplicities
+        For each event.
+
+    Yields
+    -------
+    v_n{k} : float
+        In the order v2{2}, v2{4}, ..., v3{2}, v3{4}, ...
+
+    """
+
+    # the following naming conventions are used
+    # corrK = <K> = K-particle azimuthal correlation
+    # cnK = c_n{K} = K-order cumulant for nth-order anisotropy
+    # vnK = v_n{K}
+    # Calculations are vectorized using numexpr, which also avoids
+    # memory-consuming temporary arrays which are typically found in numpy.
+    # For each anisotropy order n, cumulants are calculated in ascending order.
+    # This allows higher-order cumulants to reuse results from lower order.
     for n in the_n:
         # v_n{2}
         Qn = Q[n]
@@ -93,6 +157,8 @@ def main():
     the_n = range(2, args.max_vn+1)
     the_k = range(2, args.max_cumulant+1, 2)
 
+    # determine necessary Q-cumulants
+    # flow cumulant v_n{k} requires the Q-cumulants n, 2n, ..., (k/2)n
     Qn_to_calculate = frozenset(n*int(k/2) for n in the_n for k in the_k)
 
     # initialize containers to hold multiplicity and Q_n vectors
@@ -114,6 +180,7 @@ def main():
     for n, _Qn in Q.items():
         Q[n] = np.array(_Qn, dtype=np.complex128)
 
+    # output
     print(*cumulant_generator(the_n, args.max_cumulant, Q, M))
 
 

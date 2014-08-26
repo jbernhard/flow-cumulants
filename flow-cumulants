@@ -2,91 +2,10 @@
 
 
 import argparse
-#import itertools
 import sys
 
 import numpy as np
 import numexpr as ne
-
-
-def Q_vectors(n, phi):
-    """
-    Flow vector Q_n = sum exp(i*n*phi).
-
-    Parameters
-    ----------
-    n : integer
-        Flow order.
-    phi : 1D array
-        Azimuthal angles of particles in an event.
-
-    Returns
-    -------
-    Qr, Qi : floats
-        Real and imaginary parts of Q.
-
-    """
-
-    #nphi = n*phi
-    #Qr = np.cos(nphi).sum()
-    #Qi = np.sin(nphi).sum()
-    #return Qr, Qi
-
-    #Qn = np.fromiter(
-    #    (ne.evaluate('sum(exp({}j*phi))'.format(n_)) for n_ in n),
-    #    dtype=np.complex128,
-    #    count=len(n)
-    #)
-    #return Qn
-
-    return np.exp(1j*n*phi).sum()
-
-
-def cumulant(n, k, phi):
-    """
-    Flow cumulant <k>_n.
-
-    Parameters
-    ----------
-    n : integer
-        Flow order.
-    k : 2 or 4
-        Cumulant order.
-    phi : 1D array
-        Azimuthal angles of particles in an event.
-
-    Returns
-    -------
-    ???
-
-    """
-
-    if k not in (2, 4):
-        raise ValueError('Cumulant order must be 2 or 4.')
-
-    M = phi.size
-
-    Qnr, Qni = Q_vector(n, phi)
-    Qnsq = Qnr*Qnr + Qni*Qni  # |Q_n|^2
-
-    c2 = (Qnsq - M)
-    weight = (M*(M-1))
-
-    if k == 2:
-        return (c2, weight)
-    else:
-        Q2nr, Q2ni = Q_vector(2*n, phi)
-        Q2nsq = Q2nr*Q2nr + Q2ni*Q2ni  # |Q_2n|^2
-
-        # Re[Q_2n Q_n^* Q_n^*]
-        # Re[Q_2n] (Re[Q_n]^2 - Im[Q_n]^2) + 2 Re[Q_n] Im[Q_n] Im[Q_2n]
-        cross_term = Q2nr*(Qnr*Qnr - Qni*Qni) + 2*Qnr*Qni*Q2ni
-
-        # |Q_n|^4 + |Q_2n|^2 - 2(Re[Q_2n Q_n^* Q_n^*] + 2(M-2)|Q_n|^2 - M(M-3))
-        c4 = Qnsq*Qnsq + Q2nsq - 2*(cross_term + 2*(M-2)*Qnsq - M*(M-3))
-        weight = M*(M-1)*(M-2)*(M-3)
-
-        return (c2, weight), (c4, weight)
 
 
 def phi_generator(column):
@@ -105,26 +24,52 @@ def phi_generator(column):
         yield np.array(phi, dtype=np.float64)
 
 
-#def cumulant_generator():
-#    pg = phi_generator()
-#    while True:
-#        phi = np.fromiter(
-#            itertools.takewhile(lambda p: p is not None, pg),
-#            dtype=np.float64
-#        )
-#        if not phi.size:
-#            break
-#        yield cumulant(2, 2, phi)
+def Q_cumulant(n, phi):
+    return ne.evaluate('sum(exp(1j*n*phi))')
 
+
+def cumulant_generator(the_n, k_max, Q, M):
+    for n in the_n:
+        # v_n{2}
+        Qn = Q[n]
+        Qnsq = ne.evaluate('real(Qn*conj(Qn))')
+        corr2_numerator = ne.evaluate('sum(Qnsq - M)')
+        corr2_denominator = ne.evaluate('sum(M*(M-1))')
+        corr2 = corr2_numerator / corr2_denominator
+        cn2 = corr2
+        vn2 = abs(cn2)**.5
+        if cn2 < 0:
+            vn2 *= -1
+        yield vn2
+
+        if k_max == 2:
+            continue
+
+        # v_n{4}
+        Q2n = Q[2*n]
+        corr4_numerator = ne.evaluate(
+            '''sum(
+               Qnsq*Qnsq + real(Q2n*conj(Q2n))
+               - 2*real(Q2n*conj(Qn)*conj(Qn))
+               - 4*(M-2)*Qnsq + 2*M*(M-3)
+            )'''
+        )
+        corr4_denominator = ne.evaluate('sum(M*(M-1)*(M-2)*(M-3))')
+        corr4 = corr4_numerator / corr4_denominator
+        cn4 = corr4 - 2.*corr2*corr2
+        vn4 = abs(cn4)**.25
+        if cn4 > 0:
+            vn4 *= -1
+        yield vn4
 
 
 def main():
     parser = argparse.ArgumentParser(
         description='''Calculate flow cumulants v_n{k}.  Reads phi (azimuthal
-        angles) from stdin.  No particle filtering is done (e.g. charged particles, pT
-        cut).  Any line that is blank or starts with a comment
-        (#) is an event separator.  Outputs cumulants in the order v2{2},
-        v3{2}, ..., v2{4}, v3{4}, ...''',
+        angles) from stdin.  No particle filtering is done (e.g. charged
+        particles, pT cut).  Any line that is blank or starts with a comment
+        (#) is an event separator.  Outputs cumulants in the order
+        v2{2}, v2{4}, ..., v3{2}, v3{4}, ...''',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
@@ -145,14 +90,10 @@ def main():
 
     args = parser.parse_args()
 
-
     the_n = range(2, args.max_vn+1)
     the_k = range(2, args.max_cumulant+1, 2)
 
     Qn_to_calculate = frozenset(n*int(k/2) for n in the_n for k in the_k)
-
-    #print(*Qn_to_calculate)
-    #exit()
 
     # initialize containers to hold multiplicity and Q_n vectors
     M = []
@@ -163,71 +104,17 @@ def main():
     for phi in phi_generator(args.column):
         M.append(phi.size)
         for n, _Qn in Q.items():
-            #Qn.append(np.exp(1j*n*phi).sum())
-            _Qn.append(ne.evaluate('sum(exp(1j*n*phi))'))
+            _Qn.append(Q_cumulant(n, phi))
 
     # convert to numpy arrays
-    M = np.array(M, dtype=np.int32)
+    # store multiplicities as floats, not ints
+    # otherwise powers of mult. could overflow
+    # anyway, mult. is cast to floating point when calculating cumulants
+    M = np.array(M, dtype=np.float64)
     for n, _Qn in Q.items():
         Q[n] = np.array(_Qn, dtype=np.complex128)
 
-    cumulants = []
-
-    for n in the_n:
-        # v_n{2}
-        Qn = Q[n]
-        Qnsq = ne.evaluate('real(Qn*conj(Qn))')
-        #print(*Qnsq[:5])
-        #print(*M[:5])
-        #corr2_numerator = ne.evaluate('sum(Qnsq - M)')
-        #corr2_denominator = ne.evaluate('sum(M*(M-1))')
-        corr2_numerator = ne.evaluate('Qnsq - M')
-        corr2_denominator = ne.evaluate('M*(M-1)')
-        corr2 = corr2_numerator / corr2_denominator
-        cn2 = corr2
-        #vn2 = abs(cn2)**.5
-        #if cn2 < 0:
-        #    vn2 *= -1
-        vn2 = cn2
-        cumulants.append(vn2)
-
-        if args.max_cumulant == 2:
-            continue
-
-        # v_n{4}
-        Q2n = Q[2*n]
-        #corr4_numerator = ne.evaluate(
-        #    '''sum(
-        #       Qnsq*Qnsq + real(Q2n*conj(Q2n))
-        #       - 2*real(Q2n*conj(Qn)*conj(Qn))
-        #       - 4*(M-2)*Qnsq + 2*M*(M-3)
-        #    )'''
-        #)
-        #corr4_denominator = ne.evaluate('sum(M*(M-1)*(M-2)*(M-3))')
-        #corr4_numerator = ne.evaluate('Qnsq*Qnsq + real(Q2n*conj(Q2n)) - 2*real(Q2n*conj(Qn)*conj(Qn)) - 4*(M-2)*Qnsq + 2*M*(M-3)')
-        corr4_numerator = abs(Qn)**4 + abs(Q2n)**2 - 2*(Q2n*Qn.conj()*Qn.conj()).real - 4*(M-2)*abs(Qn)**2 + 2*M*(M-3)
-        corr4_denominator = M*(M-1)*(M-2)*(M-3)
-        corr4 = corr4_numerator / corr4_denominator
-        #cn4 = corr4 - 2.*corr2*corr2
-        #vn4 = abs(cn4)**.25
-        #if cn4 > 0:
-        #    vn4 *= -1
-        vn4 = corr4
-        cumulants.append(vn4)
-
-    for i in zip(M, corr2, corr4):
-        print(*i)
-
-    #print(*cumulants)
-
-    #cumulants = np.fromiter(
-    #    itertools.chain.from_iterable(cumulant_generator()),
-    #    dtype=np.float64
-    #).reshape(-1, 2)
-    #print(cumulants.size, cumulants.shape)
-    #total_c2, total_weight = cumulants.sum(axis=0)
-    #c22 = total_c2 / total_weight
-    #print(c22**.5)
+    print(*cumulant_generator(the_n, args.max_cumulant, Q, M))
 
 
 if __name__ == "__main__":

@@ -111,9 +111,11 @@ def cumulant_generator(the_n, k_max, Q, M):
 
         # v_n{4}
         Q2n = Q[2*n]
+        Qn4 = ne.evaluate('Qnsq*Qnsq')
+        Q2nsq = ne.evaluate('real(Q2n*conj(Q2n))')
         corr4_numerator = ne.evaluate(
             '''sum(
-               Qnsq*Qnsq + real(Q2n*conj(Q2n))
+               Qn4 + Q2nsq
                - 2*real(Q2n*conj(Qn)*conj(Qn))
                - 4*(M-2)*Qnsq + 2*M*(M-3)
             )'''
@@ -125,6 +127,36 @@ def cumulant_generator(the_n, k_max, Q, M):
         if cn4 > 0:
             vn4 *= -1
         yield vn4
+
+        if k_max == 4:
+            continue
+
+        # v_n{6}
+        Q3n = Q[3*n]
+        #
+        # TODO: CHECK THIS
+        #
+        corr6_numerator = ne.evaluate(
+            '''sum(
+                Qn4*Qnsq 
+                + 9*Q2nsq*Qnsq 
+                - 6*real(Q2n*Qn*conj(Qn)*conj(Qn)*conj(Qn))
+                + 4*real(Q3n*conj(Qn)*conj(Qn)*conj(Qn))
+                - 12*real(Q2n*conj(Q2n)*conj(Qn))
+                + 18*(M-4)*real(Q2n*conj(Qn)*conj(Qn))
+                + 4*real(Q3n*conj(Q3n))
+                - 9*(M-4)*(Qn4 + Q2nsq)
+                + 18*(M-2)*(M-5)*Qnsq
+                - 6*M*(M-4)*(M-5)
+            )'''
+        )
+        corr6_denominator = ne.evaluate('sum(M*(M-1)*(M-2)*(M-3)*(M-4)*(M-5))')
+        corr6 = corr6_numerator / corr6_denominator
+        cn6 = corr6 - 9*corr2*corr4 + 12*corr2*corr2*corr2
+        vn6 = abs(.25*cn6)**(1/6)
+        if cn6 < 0:
+            vn6 *= -1
+        yield vn6
 
 
 def main():
@@ -148,7 +180,7 @@ def main():
                         help='Maximum flow harmonic.'
                         )
     parser.add_argument('-k', '--max-cumulant',
-                        type=int, choices=(2, 4), default=2,
+                        type=int, choices=(2, 4, 6), default=2,
                         help='Maximum cumulant.'
                         )
 

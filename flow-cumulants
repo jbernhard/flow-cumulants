@@ -28,9 +28,9 @@ def phi_generator(column):
 
     phi = []
 
-    for l in sys.stdin:
+    for l in sys.stdin.buffer:
         s = l.split()
-        if not s or s[0][0] == '#':
+        if not s or s[0][0] == b'#':
             if phi:
                 yield np.array(phi, dtype=np.float64)
                 phi.clear()

@@ -177,7 +177,7 @@ def main():
                         help='Maximum flow harmonic.'
                         )
     parser.add_argument('-k', '--max-cumulant',
-                        type=int, choices=(2, 4, 6), default=2,
+                        type=int, choices=(2, 4, 6), default=4,
                         help='Maximum cumulant.'
                         )
 

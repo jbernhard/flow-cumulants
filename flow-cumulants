@@ -135,8 +135,8 @@ def cumulant_generator(the_n, k_max, Q, M):
         Q3n = Q[3*n]
         corr6_numerator = ne.evaluate(
             '''sum(
-                Qn4*Qnsq 
-                + 9*Q2nsq*Qnsq 
+                Qn4*Qnsq
+                + 9*Q2nsq*Qnsq
                 - 6*real(Q2n*Qn*conj(Qn)*conj(Qn)*conj(Qn))
                 + 4*real(Q3n*conj(Qn)*conj(Qn)*conj(Qn))
                 - 12*real(Q3n*conj(Q2n)*conj(Qn))

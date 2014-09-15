@@ -198,6 +198,11 @@ def main():
                         Additional output columns will be inserted after
                         v_n{2}.'''
                         )
+    parser.add_argument('--etarange', type=float,
+                        help='''Pseudorapidity width.  If given, the average
+                        multiplicity <dN/deta> = mean(M)/(etarange) will be
+                        prepended to the cumulants.'''
+                        )
 
     args = parser.parse_args()
 
@@ -227,7 +232,14 @@ def main():
     for n, _Qn in Q.items():
         Q[n] = np.array(_Qn, dtype=np.complex128)
 
+    #
     # output
+    #
+
+    # dN/deta
+    if args.etarange is not None:
+        print(M.mean()/args.etarange, end=' ')
+    # cumulants
     print(
         *cumulant_generator(the_n, args.max_cumulant, Q, M, error=args.error)
     )

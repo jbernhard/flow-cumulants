@@ -8,7 +8,7 @@
 #include<vector>
 
 
-const double eta_max = 2.0;
+const double eta_max = 0.5;
 const double pT_width = 0.1;
 const unsigned Qn_max = 8;
 
@@ -20,7 +20,8 @@ int main() {
   std::cout << std::fixed;
 
   std::string line;
-  const double twice_eta_max = 2.*eta_max;
+  const double exp2eta_min = std::exp(-2.*eta_max);
+  const double exp2eta_max = std::exp(2.*eta_max);
   std::map<size_t, std::vector<double>> particles;
 
   while (std::cin) {
@@ -65,9 +66,9 @@ int main() {
     auto pz = std::stod(line.substr(169, 23));
 
     auto pmag = std::sqrt(px*px + py*py + pz*pz);
-    auto twice_eta = std::log((pmag+pz)/(pmag-pz));
+    auto exp2eta = (pmag+pz)/std::fmax(pmag-pz, 1e-10);
 
-    if (twice_eta > twice_eta_max)
+    if (exp2eta > exp2eta_max || exp2eta < exp2eta_min)
       continue;
 
     auto pT = std::hypot(px, py);
